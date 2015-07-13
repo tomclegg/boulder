@@ -114,7 +114,7 @@ func logSrv(t *testing.T, stopChan, waitChan chan bool) {
 		}
 		// Submissions should always contain at least one cert
 		if len(jsonReq.Chain) >= 1 {
-			fmt.Fprint(w, `{"signature":"BAMASDBGAiEA/4kz9wQq3NhvZ6VlOmjq2Z9MVHGrUjF8uxUG9n1uRc4CIQD2FYnnszKXrR9AP5kBWmTgh3fXy+VlHK8HZXfbzdFf7g=="}`)
+			fmt.Fprint(w, `{"signature":"BAMASDBGAiEAknaySJVdB3FqG9bUKHgyu7V9AdEabpTc71BELUp6/iECIQDObrkwlQq6Azfj5XOA5E12G/qy/WuRn97z7qMSXXc82Q=="}`)
 		}
 	})
 
@@ -147,7 +147,7 @@ func TestNewPublisherAuthorityImpl(t *testing.T) {
 
 func TestCheckSignature(t *testing.T) {
 	// Based on a submission to the aviator log
-	goodSigBytes, err := base64.StdEncoding.DecodeString("BAMASDBGAiEA/4kz9wQq3NhvZ6VlOmjq2Z9MVHGrUjF8uxUG9n1uRc4CIQD2FYnnszKXrR9AP5kBWmTgh3fXy+VlHK8HZXfbzdFf7g==")
+	goodSigBytes, err := base64.StdEncoding.DecodeString("BAMASDBGAiEAknaySJVdB3FqG9bUKHgyu7V9AdEabpTc71BELUp6/iECIQDObrkwlQq6Azfj5XOA5E12G/qy/WuRn97z7qMSXXc82Q==")
 	test.AssertNotError(t, err, "Couldn't decode signature")
 
 	testReciept := core.SignedCertificateTimestamp{
