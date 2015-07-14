@@ -10,7 +10,6 @@ import (
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/streadway/amqp"
 
 	"github.com/letsencrypt/boulder/cmd"
-	"github.com/letsencrypt/boulder/core"
 	blog "github.com/letsencrypt/boulder/log"
 	"github.com/letsencrypt/boulder/publisher"
 	"github.com/letsencrypt/boulder/rpc"
@@ -31,9 +30,7 @@ func main() {
 
 		blog.SetAuditLogger(auditlogger)
 
-		issuer, err := core.LoadCert(c.Common.IssuerCert)
-		cmd.FailOnError(err, "Could not load issuer certificate")
-		pubi, err := publisher.NewPublisherAuthorityImpl(c.Publisher.CT, issuer.Raw)
+		pubi, err := publisher.NewPublisherAuthorityImpl(c.Publisher.CT)
 
 		go cmd.ProfileCmd("Publisher", stats)
 

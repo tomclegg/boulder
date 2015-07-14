@@ -74,10 +74,11 @@ type CTConfig struct {
 	Logs              []logDescription `json:"logs"`
 	SubmissionRetries int              `json:"submissionRetries"`
 	// This should use the same method as the DNS resolver
-	SubmissionBackoffString string `json:"submissionBackoff"`
+	SubmissionBackoffString string        `json:"submissionBackoff"`
+	SubmissionBackoff       time.Duration `json:"-"`
 
-	SubmissionBackoff time.Duration `json:"-"`
-	IssuerDER         []byte        `json:"-"`
+	BundleFilename string   `json:"intermediateBundleFilename"`
+	IssuerBundle   []string `json:"-"`
 }
 
 type ctSubmissionRequest struct {
@@ -99,7 +100,7 @@ type PublisherAuthorityImpl struct {
 
 // NewPublisherAuthorityImpl creates a Publisher that will submit certificates
 // to any CT logs configured in CTConfig
-func NewPublisherAuthorityImpl(ctConfig *CTConfig, issuerDER []byte) (PublisherAuthorityImpl, error) {
+func NewPublisherAuthorityImpl(ctConfig *CTConfig) (PublisherAuthorityImpl, error) {
 	var pub PublisherAuthorityImpl
 
 	logger := blog.GetAuditLogger()
@@ -108,7 +109,15 @@ func NewPublisherAuthorityImpl(ctConfig *CTConfig, issuerDER []byte) (PublisherA
 
 	if ctConfig != nil {
 		pub.CT = ctConfig
-		pub.CT.IssuerDER = issuerDER
+		if ctConfig.BundleFilename != "" {
+			bundle, err := core.LoadCertBundle(ctConfig.BundleFilename)
+			if err != nil {
+				return pub, nil
+			}
+			for _, cert := range bundle {
+				pub.CT.IssuerBundle = append(pub.CT.IssuerBundle, base64.StdEncoding.EncodeToString(cert.Raw))
+			}
+		}
 		ctBackoff, err := time.ParseDuration(ctConfig.SubmissionBackoffString)
 		if err != nil {
 			return pub, err
@@ -126,9 +135,8 @@ func (pub *PublisherAuthorityImpl) SubmitToCT(cert *x509.Certificate) error {
 		return nil
 	}
 	submission := ctSubmissionRequest{Chain: []string{base64.StdEncoding.EncodeToString(cert.Raw)}}
-	if len(pub.CT.IssuerDER) > 0 {
-		submission.Chain = append(submission.Chain, base64.StdEncoding.EncodeToString(pub.CT.IssuerDER))
-	}
+	// Add all intermediate/root certificates needed for submission
+	submission.Chain = append(submission.Chain, pub.CT.IssuerBundle...)
 	client := http.Client{}
 	jsonSubmission, err := json.Marshal(submission)
 	if err != nil {

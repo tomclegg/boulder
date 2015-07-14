@@ -176,7 +176,7 @@ func initAuthorities(t *testing.T) (core.CertificateAuthority, *DummyValidationA
 	ocspSigner, _ := ocsp.NewSigner(caCert, caCert, caKey, time.Hour)
 	pa := policy.NewPolicyAuthorityImpl()
 	cadb, _ := mocks.NewMockCertificateAuthorityDatabase()
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca := ca.CertificateAuthorityImpl{
 		Signer:         signer,
 		OCSPSigner:     ocspSigner,

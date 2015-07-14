@@ -415,7 +415,7 @@ func TestRevoke(t *testing.T) {
 	if err != nil {
 		return
 	}
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096
@@ -445,7 +445,7 @@ func TestIssueCertificate(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
 	test.AssertNotError(t, err, "Failed to create CA")
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096
@@ -523,7 +523,7 @@ func TestRejectNoName(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
 	test.AssertNotError(t, err, "Failed to create CA")
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096
@@ -541,7 +541,7 @@ func TestRejectTooManyNames(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
 	test.AssertNotError(t, err, "Failed to create CA")
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 
@@ -556,7 +556,7 @@ func TestDeduplication(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
 	test.AssertNotError(t, err, "Failed to create CA")
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096
@@ -587,7 +587,7 @@ func TestRejectValidityTooLong(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
 	test.AssertNotError(t, err, "Failed to create CA")
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096
@@ -609,7 +609,7 @@ func TestRejectValidityTooLong(t *testing.T) {
 func TestShortKey(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096
@@ -624,7 +624,7 @@ func TestShortKey(t *testing.T) {
 func TestRejectBadAlgorithm(t *testing.T) {
 	cadb, storageAuthority, caConfig := setup(t)
 	ca, err := NewCertificateAuthorityImpl(cadb, caConfig, caCertFile)
-	pub, _ := publisher.NewPublisherAuthorityImpl(nil, []byte{})
+	pub, _ := publisher.NewPublisherAuthorityImpl(nil)
 	ca.Publisher = &pub
 	ca.SA = storageAuthority
 	ca.MaxKeySize = 4096

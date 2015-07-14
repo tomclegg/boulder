@@ -338,14 +338,19 @@ func UniqueNames(names []string) (unique []string) {
 
 // LoadCert loads a PEM certificate specified by filename or returns a error
 func LoadCert(filename string) (issuerCert *x509.Certificate, err error) {
-	if filename == "" {
-		err = errors.New("Certificate filename was not provided in config.")
-		return
-	}
 	issuerCertPEM, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return
 	}
 	issuerCert, err = helpers.ParseCertificatePEM(issuerCertPEM)
+	return
+}
+
+func LoadCertBundle(filename string) (bundle []*x509.Certificate, err error) {
+	bundleBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return
+	}
+	bundle, err = x509.ParseCertificates(bundleBytes)
 	return
 }
