@@ -641,7 +641,7 @@ func (sct *SignedCertificateTimestamp) UnmarshalJSON(data []byte) error {
 	var err error
 	var rawSCT rawSignedCertificateTimestamp
 	if err = json.Unmarshal(data, &rawSCT); err != nil {
-		return fmt.Errorf("Failed to unmarshal SCT reciept, %s", err)
+		return fmt.Errorf("Failed to unmarshal SCT receipt, %s", err)
 	}
 	sct.LogID, err = base64.StdEncoding.DecodeString(rawSCT.LogID)
 	if err != nil {

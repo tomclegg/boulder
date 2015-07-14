@@ -247,14 +247,14 @@ func (sa *MockSA) UpdateRegistration(reg core.Registration) (err error) {
 	return
 }
 
-func (sa *MockSA) GetSCTReciepts(serial string) (scts []*core.SignedCertificateTimestamp, err error) {
+func (sa *MockSA) GetSCTReceipts(serial string) (scts []*core.SignedCertificateTimestamp, err error) {
 	return
 }
 
-func (sa *MockSA) GetSCTReciept(serial string, logID []byte) (sct *core.SignedCertificateTimestamp, err error) {
+func (sa *MockSA) GetSCTReceipt(serial string, logID []byte) (sct *core.SignedCertificateTimestamp, err error) {
 	return
 }
 
-func (sa *MockSA) AddSCTReciept(sct core.SignedCertificateTimestamp) (err error) {
+func (sa *MockSA) AddSCTReceipt(sct core.SignedCertificateTimestamp) (err error) {
 	return
 }

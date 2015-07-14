@@ -150,20 +150,20 @@ func TestCheckSignature(t *testing.T) {
 	goodSigBytes, err := base64.StdEncoding.DecodeString("BAMASDBGAiEAknaySJVdB3FqG9bUKHgyu7V9AdEabpTc71BELUp6/iECIQDObrkwlQq6Azfj5XOA5E12G/qy/WuRn97z7qMSXXc82Q==")
 	test.AssertNotError(t, err, "Couldn't decode signature")
 
-	testReciept := core.SignedCertificateTimestamp{
+	testReceipt := core.SignedCertificateTimestamp{
 		Signature: goodSigBytes,
 	}
 
 	// Good signature
-	err = testReciept.CheckSignature()
+	err = testReceipt.CheckSignature()
 	test.AssertNotError(t, err, "Valid signature check failed")
 
 	// Invalid signature (too short, trailing garbage)
-	testReciept.Signature = goodSigBytes[1:]
-	err = testReciept.CheckSignature()
+	testReceipt.Signature = goodSigBytes[1:]
+	err = testReceipt.CheckSignature()
 	test.AssertError(t, err, "Invalid signature check failed")
-	testReciept.Signature = append(goodSigBytes, []byte{0, 0, 1}...)
-	err = testReciept.CheckSignature()
+	testReceipt.Signature = append(goodSigBytes, []byte{0, 0, 1}...)
+	err = testReceipt.CheckSignature()
 	test.AssertError(t, err, "Invalid signature check failed")
 }
 

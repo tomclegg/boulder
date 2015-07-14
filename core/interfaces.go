@@ -107,8 +107,8 @@ type StorageGetter interface {
 	GetCertificateByShortSerial(string) (Certificate, error)
 	GetCertificateStatus(string) (CertificateStatus, error)
 	AlreadyDeniedCSR([]string) (bool, error)
-	GetSCTReciepts(string) ([]*SignedCertificateTimestamp, error)
-	GetSCTReciept(string, []byte) (*SignedCertificateTimestamp, error)
+	GetSCTReceipts(string) ([]*SignedCertificateTimestamp, error)
+	GetSCTReceipt(string, []byte) (*SignedCertificateTimestamp, error)
 }
 
 // StorageAdder are the Boulder SA's write/update methods
@@ -124,7 +124,7 @@ type StorageAdder interface {
 
 	AddCertificate([]byte, int64) (string, error)
 
-	AddSCTReciept(SignedCertificateTimestamp) error
+	AddSCTReceipt(SignedCertificateTimestamp) error
 }
 
 // StorageAuthority interface represents a simple key/value

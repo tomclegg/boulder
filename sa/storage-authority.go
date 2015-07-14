@@ -544,45 +544,45 @@ func (ssa *SQLStorageAuthority) AlreadyDeniedCSR(names []string) (already bool, 
 	return
 }
 
-// GetSCTReciepts gets all of the SCT reciepts for a given certificate serial
-func (ssa *SQLStorageAuthority) GetSCTReciepts(serial string) (reciepts []*core.SignedCertificateTimestamp, err error) {
-	recieptObjs, err := ssa.dbMap.Select(
+// GetSCTReceipts gets all of the SCT receipts for a given certificate serial
+func (ssa *SQLStorageAuthority) GetSCTReceipts(serial string) (receipts []*core.SignedCertificateTimestamp, err error) {
+	receiptObjs, err := ssa.dbMap.Select(
 		&core.SignedCertificateTimestamp{},
-		"SELECT * FROM sctReciepts WHERE certificateSerial = :serial",
+		"SELECT * FROM sctReceipts WHERE certificateSerial = :serial",
 		map[string]interface{}{"serial": serial},
 	)
 	if err != nil {
 		return
 	}
-	if len(recieptObjs) == 0 {
+	if len(receiptObjs) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	for _, recieptObj := range recieptObjs {
-		reciept := recieptObj.(*core.SignedCertificateTimestamp)
-		reciepts = append(reciepts, reciept)
+	for _, receiptObj := range receiptObjs {
+		receipt := receiptObj.(*core.SignedCertificateTimestamp)
+		receipts = append(receipts, receipt)
 	}
 	return
 }
 
-// GetSCTReciept gets a specific SCT reciept for a given certificate serial and
+// GetSCTReceipt gets a specific SCT receipt for a given certificate serial and
 // CT log ID
-func (ssa *SQLStorageAuthority) GetSCTReciept(serial string, logID []byte) (*core.SignedCertificateTimestamp, error) {
+func (ssa *SQLStorageAuthority) GetSCTReceipt(serial string, logID []byte) (*core.SignedCertificateTimestamp, error) {
 	// TODO(rolandshoemaker): This could be a better query
-	reciepts, err := ssa.GetSCTReciepts(serial)
+	receipts, err := ssa.GetSCTReceipts(serial)
 	if err != nil {
 		return nil, err
 	}
-	for _, reciept := range reciepts {
-		if bytes.Compare(reciept.LogID, logID) == 0 {
-			return reciept, nil
+	for _, receipt := range receipts {
+		if bytes.Compare(receipt.LogID, logID) == 0 {
+			return receipt, nil
 		}
 	}
 
 	return nil, sql.ErrNoRows
 }
 
-// AddSCTReciept adds a new SCT reciept to the (append-only) sctReciepts table
-func (ssa *SQLStorageAuthority) AddSCTReciept(sct core.SignedCertificateTimestamp) error {
+// AddSCTReceipt adds a new SCT receipt to the (append-only) sctReceipts table
+func (ssa *SQLStorageAuthority) AddSCTReceipt(sct core.SignedCertificateTimestamp) error {
 	tx, err := ssa.dbMap.Begin()
 	if err != nil {
 		return err

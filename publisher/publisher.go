@@ -219,31 +219,31 @@ func (pub *PublisherAuthorityImpl) SubmitToCT(cert *x509.Certificate) error {
 		// Set certificate serial and add SCT to SQL
 		sct.CertificateSerial = core.SerialToString(cert.SerialNumber)
 
-		// TODO(rolandshoemaker): there shouldn't be any existing reciepts (although
-		// since logs should return the same reciept for a duplicate submission we
+		// TODO(rolandshoemaker): there shouldn't be any existing receipts (although
+		// since logs should return the same receipt for a duplicate submission we
 		// may be able to ignore this and also ignore any existing row errors for
-		// the AddToSCTReciept call below)
-		existingReciept, err := pub.SA.GetSCTReciept(sct.CertificateSerial, ctLog.ID)
+		// the AddToSCTReceipt call below)
+		existingreceipt, err := pub.SA.GetSCTReceipt(sct.CertificateSerial, ctLog.ID)
 		if err != nil && err != sql.ErrNoRows {
 			// AUDIT[ Error Conditions ] 9cc4d537-8534-4970-8665-4b382abe82f3
 			pub.log.AuditErr(fmt.Errorf(
-				"Error checking for existing SCT reciept for [%s to %s]: %s",
+				"Error checking for existing SCT receipt for [%s to %s]: %s",
 				sct.CertificateSerial,
 				ctLog.URI,
 				err,
 			))
 		}
-		if existingReciept != nil {
+		if existingreceipt != nil {
 			// AUDIT[ Error Conditions ] 9cc4d537-8534-4970-8665-4b382abe82f3
-			err := fmt.Errorf("Existing SCT reciept for [%s to %s]", sct.CertificateSerial, ctLog.URI)
+			err := fmt.Errorf("Existing SCT receipt for [%s to %s]", sct.CertificateSerial, ctLog.URI)
 			pub.log.AuditErr(err)
 			return err
 		}
-		err = pub.SA.AddSCTReciept(sct)
+		err = pub.SA.AddSCTReceipt(sct)
 		if err != nil {
 			// AUDIT[ Error Conditions ] 9cc4d537-8534-4970-8665-4b382abe82f3
 			pub.log.AuditErr(fmt.Errorf(
-				"Error adding SCT reciept for [%s to %s]: %s",
+				"Error adding SCT receipt for [%s to %s]: %s",
 				sct.CertificateSerial,
 				ctLog.URI,
 				err,
@@ -251,7 +251,7 @@ func (pub *PublisherAuthorityImpl) SubmitToCT(cert *x509.Certificate) error {
 			return err
 		}
 		pub.log.Notice(fmt.Sprintf(
-			"Stored SCT reciept from CT log submission [Serial: %s, Log URI: %s]",
+			"Stored SCT receipt from CT log submission [Serial: %s, Log URI: %s]",
 			core.SerialToString(cert.SerialNumber),
 			ctLog.URI,
 		))
@@ -284,7 +284,7 @@ func postJSON(client *http.Client, uri string, data []byte, respObj interface{})
 
 	err = json.Unmarshal(body, respObj)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal SCT reciept, %s", err)
+		return nil, fmt.Errorf("Failed to unmarshal SCT receipt, %s", err)
 	}
 
 	return resp, nil
