@@ -52,30 +52,32 @@ type verificationRequestEvent struct {
 	Error        string         `json:",omitempty"`
 }
 
+func (va ValidationAuthorityImpl) debugValidation(vType string, identifier core.AcmeIdentifier, challenge *core.Challenge) {
+	va.log.Debug(fmt.Sprintf("validate%s: [%s] challenge %+v", vType, identifier, challenge))
+}
+
+
 // Validation methods
 
-func (va ValidationAuthorityImpl) validateSimpleHTTP(identifier core.AcmeIdentifier, input core.Challenge) (core.Challenge, error) {
-	challenge := input
+func (va ValidationAuthorityImpl) validateSimpleHTTP(identifier core.AcmeIdentifier, input core.Challenge) (challenge core.Challenge) {
+	challenge = input
+	challenge.Error = nil
+	defer va.debugValidation("SimpleHTTP", identifier, &challenge)
 
 	if len(challenge.Path) == 0 {
-		challenge.Status = core.StatusInvalid
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
 			Detail: "No path provided for SimpleHTTP challenge.",
 		}
-		va.log.Debug(fmt.Sprintf("SimpleHTTP [%s] path empty: %v", identifier, challenge))
-		return challenge, challenge.Error
+		return
 	}
 
 	if identifier.Type != core.IdentifierDNS {
-		challenge.Status = core.StatusInvalid
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
 			Detail: "Identifier type for SimpleHTTP was not DNS",
 		}
-
-		va.log.Debug(fmt.Sprintf("SimpleHTTP [%s] Identifier failure", identifier))
-		return challenge, challenge.Error
+		return
 	}
 	hostName := identifier.Value
 
@@ -97,11 +99,9 @@ func (va ValidationAuthorityImpl) validateSimpleHTTP(identifier core.AcmeIdentif
 	if err != nil {
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
-			Detail: "URL provided for SimpleHTTP was invalid",
+			Detail: "URL provided for SimpleHTTP was invalid: " + err.Error(),
 		}
-		va.log.Debug(fmt.Sprintf("SimpleHTTP [%s] HTTP failure: %s", identifier, err))
-		challenge.Status = core.StatusInvalid
-		return challenge, err
+		return
 	}
 
 	if va.UserAgent != "" {
@@ -122,61 +122,49 @@ func (va ValidationAuthorityImpl) validateSimpleHTTP(identifier core.AcmeIdentif
 		Timeout:   5 * time.Second,
 	}
 	httpResponse, err := client.Do(httpRequest)
-
-	if err == nil && httpResponse.StatusCode == 200 {
-		// Read body & test
-		body, readErr := ioutil.ReadAll(httpResponse.Body)
-		if readErr != nil {
-			challenge.Error = &core.ProblemDetails{
-				Type: core.ServerInternalProblem,
-			}
-			va.log.Debug(fmt.Sprintf("SimpleHTTP [%s] Read failure: %s", identifier, readErr))
-			challenge.Status = core.StatusInvalid
-			return challenge, readErr
-		}
-
-		if subtle.ConstantTimeCompare(body, []byte(challenge.Token)) == 1 {
-			challenge.Status = core.StatusValid
-		} else {
-			challenge.Status = core.StatusInvalid
-			challenge.Error = &core.ProblemDetails{
-				Type: core.UnauthorizedProblem,
-				Detail: fmt.Sprintf("Incorrect token validating Simple%s for %s",
-					strings.ToUpper(scheme), url),
-			}
-			err = challenge.Error
-		}
-	} else if err != nil {
-		challenge.Status = core.StatusInvalid
+	if err != nil {
 		challenge.Error = &core.ProblemDetails{
 			Type:   parseHTTPConnError(err),
-			Detail: fmt.Sprintf("Could not connect to %s", url),
+			Detail: fmt.Sprintf("Could not connect to %s: %s", url, err.Error()),
 		}
-		va.log.Debug(strings.Join([]string{challenge.Error.Error(), err.Error()}, ": "))
-	} else {
-		challenge.Status = core.StatusInvalid
+		return
+	}
+	if httpResponse.StatusCode != 200 {
 		challenge.Error = &core.ProblemDetails{
 			Type: core.UnauthorizedProblem,
-			Detail: fmt.Sprintf("Invalid response from %s: %d",
+			Detail: fmt.Sprintf("Invalid response from %s: HTTP %d",
 				url, httpResponse.StatusCode),
 		}
-		err = challenge.Error
+		return
 	}
 
-	return challenge, err
+	body, err := ioutil.ReadAll(httpResponse.Body)
+	if err != nil {
+		challenge.Error = &core.ProblemDetails{
+			Type: core.ServerInternalProblem,
+			Detail: "Error reading HTTP response: " + err.Error(),
+		}
+	} else if subtle.ConstantTimeCompare(body, []byte(challenge.Token)) != 1 {
+		challenge.Error = &core.ProblemDetails{
+			Type: core.UnauthorizedProblem,
+			Detail: fmt.Sprintf("Incorrect token validating Simple%s for %s",
+				strings.ToUpper(scheme), url),
+		}
+	}
+	return
 }
 
-func (va ValidationAuthorityImpl) validateDvsni(identifier core.AcmeIdentifier, input core.Challenge) (core.Challenge, error) {
-	challenge := input
+func (va ValidationAuthorityImpl) validateDvsni(identifier core.AcmeIdentifier, input core.Challenge) (challenge core.Challenge) {
+	challenge = input
+	challenge.Error = nil
+	defer va.debugValidation("DVSNI", identifier, &challenge)
 
 	if identifier.Type != "dns" {
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
 			Detail: "Identifier type for DVSNI was not DNS",
 		}
-		challenge.Status = core.StatusInvalid
-		va.log.Debug(fmt.Sprintf("DVSNI [%s] Identifier failure", identifier))
-		return challenge, challenge.Error
+		return
 	}
 
 	const DVSNIsuffix = ".acme.invalid"
@@ -184,23 +172,19 @@ func (va ValidationAuthorityImpl) validateDvsni(identifier core.AcmeIdentifier, 
 
 	R, err := core.B64dec(challenge.R)
 	if err != nil {
-		challenge.Status = core.StatusInvalid
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
-			Detail: "Failed to decode R value from DVSNI challenge",
+			Detail: "Failed to decode R value from DVSNI challenge: " + err.Error(),
 		}
-		va.log.Debug(fmt.Sprintf("DVSNI [%s] R Decode failure: %s", identifier, err))
-		return challenge, err
+		return
 	}
 	S, err := core.B64dec(challenge.S)
 	if err != nil {
-		challenge.Status = core.StatusInvalid
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
-			Detail: "Failed to decode S value from DVSNI challenge",
+			Detail: "Failed to decode S value from DVSNI challenge: " + err.Error(),
 		}
-		va.log.Debug(fmt.Sprintf("DVSNI [%s] S Decode failure: %s", identifier, err))
-		return challenge, err
+		return
 	}
 	RS := append(R, S...)
 
@@ -212,7 +196,7 @@ func (va ValidationAuthorityImpl) validateDvsni(identifier core.AcmeIdentifier, 
 	if va.TestMode {
 		hostPort = "localhost:5001"
 	}
-	va.log.Notice(fmt.Sprintf("DVSNI [%s] Attempting to validate DVSNI for %s %s",
+	va.log.Notice(fmt.Sprintf("validateDVSNI: [%s] Attempting to validate DVSNI for %s %s",
 		identifier, hostPort, zName))
 	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", hostPort, &tls.Config{
 		ServerName:         nonceName,
@@ -220,13 +204,11 @@ func (va ValidationAuthorityImpl) validateDvsni(identifier core.AcmeIdentifier, 
 	})
 
 	if err != nil {
-		challenge.Status = core.StatusInvalid
 		challenge.Error = &core.ProblemDetails{
 			Type:   parseHTTPConnError(err),
-			Detail: "Failed to connect to host for DVSNI challenge",
+			Detail: "Failed to connect to host for DVSNI challenge: " + err.Error(),
 		}
-		va.log.Debug(fmt.Sprintf("DVSNI [%s] TLS Connection failure: %s", identifier, err))
-		return challenge, err
+		return
 	}
 	defer conn.Close()
 
@@ -237,22 +219,19 @@ func (va ValidationAuthorityImpl) validateDvsni(identifier core.AcmeIdentifier, 
 			Type:   core.UnauthorizedProblem,
 			Detail: "No certs presented for DVSNI challenge",
 		}
-		challenge.Status = core.StatusInvalid
-		return challenge, challenge.Error
-	}
-	for _, name := range certs[0].DNSNames {
-		if subtle.ConstantTimeCompare([]byte(name), []byte(zName)) == 1 {
-			challenge.Status = core.StatusValid
-			return challenge, nil
-		}
+		return
 	}
 
+	for _, name := range certs[0].DNSNames {
+		if subtle.ConstantTimeCompare([]byte(name), []byte(zName)) == 1 {
+			return
+		}
+	}
 	challenge.Error = &core.ProblemDetails{
 		Type:   core.UnauthorizedProblem,
 		Detail: "Correct zName not found for DVSNI challenge",
 	}
-	challenge.Status = core.StatusInvalid
-	return challenge, challenge.Error
+	return
 }
 
 // parseHTTPConnError returns the ACME ProblemType corresponding to an error
@@ -277,17 +256,17 @@ func parseHTTPConnError(err error) core.ProblemType {
 	return core.ConnectionProblem
 }
 
-func (va ValidationAuthorityImpl) validateDNS(identifier core.AcmeIdentifier, input core.Challenge) (core.Challenge, error) {
-	challenge := input
+func (va ValidationAuthorityImpl) validateDNS(identifier core.AcmeIdentifier, input core.Challenge) (challenge core.Challenge) {
+	challenge = input
+	challenge.Error = nil
+	defer va.debugValidation("DNS", identifier, &challenge)
 
 	if identifier.Type != core.IdentifierDNS {
 		challenge.Error = &core.ProblemDetails{
 			Type:   core.MalformedProblem,
 			Detail: "Identifier type for DNS was not itself DNS",
 		}
-		va.log.Debug(fmt.Sprintf("DNS [%s] Identifier failure", identifier))
-		challenge.Status = core.StatusInvalid
-		return challenge, challenge.Error
+		return
 	}
 
 	const DNSPrefix = "_acme-challenge"
@@ -304,28 +283,23 @@ func (va ValidationAuthorityImpl) validateDNS(identifier core.AcmeIdentifier, in
 		} else {
 			challenge.Error = &core.ProblemDetails{
 				Type:   core.ServerInternalProblem,
-				Detail: "Unable to communicate with DNS server",
+				Detail: "Unable to communicate with DNS server: " + err.Error(),
 			}
 		}
-		challenge.Status = core.StatusInvalid
-		va.log.Debug(fmt.Sprintf("DNS [%s] DNS failure: %s", identifier, err))
-		return challenge, challenge.Error
+		return
 	}
 
 	byteToken := []byte(challenge.Token)
 	for _, element := range txts {
 		if subtle.ConstantTimeCompare([]byte(element), byteToken) == 1 {
-			challenge.Status = core.StatusValid
-			return challenge, nil
+			return
 		}
 	}
-
 	challenge.Error = &core.ProblemDetails{
 		Type:   core.UnauthorizedProblem,
 		Detail: "Correct value not found for DNS challenge",
 	}
-	challenge.Status = core.StatusInvalid
-	return challenge, challenge.Error
+	return
 }
 
 // Overall validation process
@@ -347,24 +321,24 @@ func (va ValidationAuthorityImpl) validate(authz core.Authorization, challengeIn
 		logEvent.Challenge = *chall
 		logEvent.Error = chall.Error.Detail
 	} else {
-		var err error
-
-		switch authz.Challenges[challengeIndex].Type {
+		c := authz.Challenges[challengeIndex]
+		switch c.Type {
 		case core.ChallengeTypeSimpleHTTP:
-			authz.Challenges[challengeIndex], err = va.validateSimpleHTTP(authz.Identifier, authz.Challenges[challengeIndex])
-			break
+			c = va.validateSimpleHTTP(authz.Identifier, c)
 		case core.ChallengeTypeDVSNI:
-			authz.Challenges[challengeIndex], err = va.validateDvsni(authz.Identifier, authz.Challenges[challengeIndex])
-			break
+			c = va.validateDvsni(authz.Identifier, c)
 		case core.ChallengeTypeDNS:
-			authz.Challenges[challengeIndex], err = va.validateDNS(authz.Identifier, authz.Challenges[challengeIndex])
-			break
+			c = va.validateDNS(authz.Identifier, c)
 		}
 
-		logEvent.Challenge = authz.Challenges[challengeIndex]
-		if err != nil {
-			logEvent.Error = err.Error()
+		if c.Error != nil {
+			c.Status = core.StatusInvalid
+			logEvent.Error = c.Error.Error()
+		} else {
+			c.Status = core.StatusValid
 		}
+		logEvent.Challenge = c
+		authz.Challenges[challengeIndex] = c
 	}
 
 	// AUDIT[ Certificate Requests ] 11917fa4-10ef-4e0d-9105-bacbe7836a3c
