@@ -328,7 +328,18 @@ func setupWFE(t *testing.T) WebFrontEndImpl {
 	wfe.CertBase = wfe.BaseURL + CertPath
 	wfe.SubscriberAgreementURL = agreementURL
 
+	http.DefaultServeMux = http.NewServeMux()
+	wfe.HandlePaths()
+
 	return wfe
+}
+
+func mustParseURL(s string) *url.URL {
+	if u, err := url.Parse(s); err != nil {
+		panic("Cannot parse URL " + s)
+	} else {
+		return u
+	}
 }
 
 func TestStandardHeaders(t *testing.T) {
@@ -336,25 +347,23 @@ func TestStandardHeaders(t *testing.T) {
 
 	cases := []struct {
 		path    string
-		handler func(http.ResponseWriter, *http.Request)
 		allowed []string
 	}{
-		{"/", wfe.Index, []string{"GET"}},
-		{wfe.NewReg, wfe.NewRegistration, []string{"POST"}},
-		{wfe.RegBase, wfe.Registration, []string{"POST"}},
-		{wfe.NewAuthz, wfe.NewAuthorization, []string{"POST"}},
-		{wfe.AuthzBase, wfe.Authorization, []string{"GET", "POST"}},
-		{wfe.NewCert, wfe.NewCertificate, []string{"POST"}},
-		{wfe.CertBase, wfe.Certificate, []string{"GET", "POST"}},
-		{wfe.SubscriberAgreementURL, wfe.Terms, []string{"GET"}},
+		{"/", []string{"GET"}},
+		{wfe.NewReg, []string{"POST"}},
+		{wfe.RegBase, []string{"POST"}},
+		{wfe.NewAuthz, []string{"POST"}},
+		{wfe.AuthzBase, []string{"GET", "POST"}},
+		{wfe.NewCert, []string{"POST"}},
+		{wfe.CertBase, []string{"GET", "POST"}},
+		{wfe.SubscriberAgreementURL, []string{"GET"}},
 	}
 
 	for _, c := range cases {
 		responseWriter := httptest.NewRecorder()
-		url, _ := url.Parse(c.path)
-		c.handler(responseWriter, &http.Request{
+		http.DefaultServeMux.ServeHTTP(responseWriter, &http.Request{
 			Method: "BOGUS",
-			URL:    url,
+			URL:    mustParseURL(c.path),
 		})
 		acao := responseWriter.Header().Get("Access-Control-Allow-Origin")
 		nonce := responseWriter.Header().Get("Replay-Nonce")
@@ -405,8 +414,9 @@ func TestIssueCertificate(t *testing.T) {
 	responseWriter := httptest.NewRecorder()
 
 	// GET instead of POST should be rejected
-	wfe.NewCertificate(responseWriter, &http.Request{
+	http.DefaultServeMux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
+		URL:    mustParseURL(NewCertPath),
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -581,8 +591,9 @@ func TestNewRegistration(t *testing.T) {
 	responseWriter := httptest.NewRecorder()
 
 	// GET instead of POST should be rejected
-	wfe.NewRegistration(responseWriter, &http.Request{
+	http.DefaultServeMux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
+		URL:    mustParseURL(NewRegPath),
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Method not allowed\"}")
 
@@ -822,8 +833,9 @@ func TestAuthorization(t *testing.T) {
 	responseWriter := httptest.NewRecorder()
 
 	// GET instead of POST should be rejected
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	http.DefaultServeMux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
+		URL:    mustParseURL(NewAuthzPath),
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Method not allowed\"}")
 
@@ -906,11 +918,10 @@ func TestRegistration(t *testing.T) {
 	responseWriter := httptest.NewRecorder()
 
 	// Test invalid method
-	path, _ := url.Parse("/1")
-	wfe.Registration(responseWriter, &http.Request{
+	http.DefaultServeMux.ServeHTTP(responseWriter, &http.Request{
 		Method: "MAKE-COFFEE",
+		URL:    mustParseURL(RegPath),
 		Body:   makeBody("invalid"),
-		URL:    path,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -918,10 +929,9 @@ func TestRegistration(t *testing.T) {
 	responseWriter.Body.Reset()
 
 	// Test GET proper entry returns 405
-	path, _ = url.Parse("/1")
-	wfe.Registration(responseWriter, &http.Request{
+	http.DefaultServeMux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
-		URL:    path,
+		URL:    mustParseURL(RegPath),
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -929,7 +939,7 @@ func TestRegistration(t *testing.T) {
 	responseWriter.Body.Reset()
 
 	// Test POST invalid JSON
-	path, _ = url.Parse("/2")
+	path, _ := url.Parse("/2")
 	wfe.Registration(responseWriter, &http.Request{
 		Method: "POST",
 		Body:   makeBody("invalid"),
