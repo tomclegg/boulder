@@ -331,6 +331,14 @@ func setupWFE(t *testing.T) WebFrontEndImpl {
 	return wfe
 }
 
+func mustParseURL(s string) *url.URL {
+	if u, err := url.Parse(s); err != nil {
+		panic("Cannot parse URL " + s)
+	} else {
+		return u
+	}
+}
+
 func TestStandardHeaders(t *testing.T) {
 	wfe := setupWFE(t)
 
@@ -394,6 +402,7 @@ func TestIndex(t *testing.T) {
 //  - RA returns with a failure
 func TestIssueCertificate(t *testing.T) {
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
 
 	// TODO: Use a mock RA so we can test various conditions of authorized, not authorized, etc.
 	ra := ra.NewRegistrationAuthorityImpl()
@@ -404,9 +413,12 @@ func TestIssueCertificate(t *testing.T) {
 	wfe.Stats, _ = statsd.NewNoopClient()
 	responseWriter := httptest.NewRecorder()
 
+	newCertURL := mustParseURL(NewCertPath)
+
 	// GET instead of POST should be rejected
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
+		URL:    newCertURL,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -414,8 +426,9 @@ func TestIssueCertificate(t *testing.T) {
 
 	// POST, but no body.
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -423,8 +436,9 @@ func TestIssueCertificate(t *testing.T) {
 
 	// POST, but body that isn't valid JWS
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body:   makeBody("hi"),
 	})
 	test.AssertEquals(t,
@@ -433,8 +447,9 @@ func TestIssueCertificate(t *testing.T) {
 
 	// POST, Properly JWS-signed, but payload is "foo", not base64-encoded JSON.
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body:   makeBody(signRequest(t, "foo", &wfe.nonceService)),
 	})
 	test.AssertEquals(t,
@@ -443,8 +458,9 @@ func TestIssueCertificate(t *testing.T) {
 
 	// Valid, signed JWS body, payload is '{}'
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body:   makeBody(signRequest(t, "{}", &wfe.nonceService)),
 	})
 	test.AssertEquals(t,
@@ -457,8 +473,9 @@ func TestIssueCertificate(t *testing.T) {
 	//   "authorizations: []
 	// }
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body: makeBody(signRequest(t, `{
       "csr": "MIICUzCCATsCAQAwDjEMMAoGA1UEAwwDZm9vMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3UWce2PY9y8n4B7jOk3DXZnu2pUgLqs7a5DzRBxnPqL7axis6thjSBI2FO7w5CUjO-m8XjD-GYWgfXebZ3aQVlBiYqdxZ3UG6RDwEbBCeKo7v8W-UUfESNNCXF874ddhJmEw0RF0YWSAEctAYHEGoPFz69gCql6xXDPY1OlpMArkIIlq9EZWwT081ekyJv0GYRfQigCMK4b1gkFvKsHja9-Q5u1b0AZyA-mPTu6z5EWkB2onhAXwWXX90sfUe8DSet9r9GxMln3lgZWT1zh3RMZILp0Uhh3NbXnA8JInukha3HPO8WgmDd4K6uBzWso0A6fp5NpX28ZpKAwM5iQltQIDAQABoAAwDQYJKoZIhvcNAQELBQADggEBAFGJV3OcghJEZvO_hGtIdaRnsu6eX3CeqS0bYcEEza8vizlj4x09ntMH3QooqPOj8suul0vD75HZTpz6FHE7SyLeNKQBGNGp1PMWmXsFqD6xURCyMHvCZoHynpCr7D5HtzIvu9fAV7XRK7qBKXfRxbv21q0ysMWnfwkbS2wrs1wAzPPg4iGJq8uVItrlcFL8buJLzxvKa3lu_OjxNXjzdEt3VVko-AKS1swkYEhsGwKd8ZzNbpF2IQ-okXgR_ZecyW8t83pV-w33GhDL9w6RLRMgSM5aojy8ri7YIoIvc3-9klbw2kwY5oM2lmhoIOGU10TkEyn18myy_5GUEGhNzPA=",
       "authorizations": []
@@ -470,8 +487,9 @@ func TestIssueCertificate(t *testing.T) {
 
 	// Valid, signed JWS body, payload has a CSR with no DNS names
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body: makeBody(signRequest(t, `{
       "authorizations": [],
       "csr": "MIIBBTCBsgIBADBNMQowCAYDVQQGEwFjMQowCAYDVQQKEwFvMQswCQYDVQQLEwJvdTEKMAgGA1UEBxMBbDEKMAgGA1UECBMBczEOMAwGA1UEAxMFT2ggaGkwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAsr76ZkU2RTqi41eHfmpE5htDvkr202yjRS8x2M5yzT52ooT2WEVtnSuim0YfOEw6f-fHmbqsasqKmqlsJdgz2QIDAQABoAAwCwYJKoZIhvcNAQEFA0EAHkCv4kVPJa53ltOGrhpdH0mT04qHUqiTllJPPjxXxn6iwiVYL8nQuhs4Q2758ENoODBuM2F8gH19TIoXlcm3LQ=="
@@ -487,8 +505,9 @@ func TestIssueCertificate(t *testing.T) {
 	//   "authorizations: []
 	// }
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body: makeBody(signRequest(t, `{
       "authorizations": [],
       "csr": "MIIBKzCB2AIBADBNMQowCAYDVQQGEwFjMQowCAYDVQQKEwFvMQswCQYDVQQLEwJvdTEKMAgGA1UEBxMBbDEKMAgGA1UECBMBczEOMAwGA1UEAxMFT2ggaGkwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAqvFEGBNrjAotPbcdTSyDpxsESN0-eYl4TqS0ZLYwLTV-FuPHTPjFiq2oH1BEgmRzjb8YiPVXFMnaOeHE7zuuXQIDAQABoCYwJAYJKoZIhvcNAQkOMRcwFTATBgNVHREEDDAKgghtZWVwLmNvbTALBgkqhkiG9w0BAQUDQQBSEcEq-lMUnzv1DO8jK0hJR8YKc0yV8zuWVfAWN0_dsPg5Ny-OHhtJcOTIrUrLTb_xCU7cjiKxU8i3j1kaT-rt"
@@ -499,8 +518,9 @@ func TestIssueCertificate(t *testing.T) {
 		"{\"type\":\"urn:acme:error:unauthorized\",\"detail\":\"Error creating new cert :: Key not authorized for name meep.com\"}")
 
 	responseWriter.Body.Reset()
-	wfe.NewCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newCertURL,
 		Body: makeBody(signRequest(t, `{
       "csr": "MIH1MIGiAgEAMA0xCzAJBgNVBAYTAlVTMFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAOXRzB9hDSCRPYjlu6HzJ9MkUPplDG-o0IS3ENiD8zcgCM-XvEEsse06CyhRb6g5Bz9AsGH9thaxszGB0o2RpakCAwEAAaAwMC4GCSqGSIb3DQEJDjEhMB8wHQYDVR0RBBYwFIISbm90LWFuLWV4YW1wbGUuY29tMAsGCSqGSIb3DQEBCwNBAFpyURFqjVn-7zx73GKaBvPF_2RhBsdehqSjaJ0BpvPKmzpoIFADjttNzKkWaRRDrTeT-GGMV2Gky8S-E_dzoms=",
       "authorizations": ["valid"]
@@ -573,6 +593,7 @@ func TestChallenge(t *testing.T) {
 
 func TestNewRegistration(t *testing.T) {
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
 
 	wfe.RA = &MockRegistrationAuthority{}
 	wfe.SA = &MockSA{}
@@ -580,23 +601,28 @@ func TestNewRegistration(t *testing.T) {
 	wfe.SubscriberAgreementURL = agreementURL
 	responseWriter := httptest.NewRecorder()
 
+	newRegURL := mustParseURL(NewRegPath)
+
 	// GET instead of POST should be rejected
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
+		URL:    newRegURL,
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Method not allowed\"}")
 
 	// POST, but no body.
 	responseWriter.Body.Reset()
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Unable to read/verify body\"}")
 
 	// POST, but body that isn't valid JWS
 	responseWriter.Body.Reset()
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 		Body:   makeBody("hi"),
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Unable to read/verify body\"}")
@@ -613,8 +639,9 @@ func TestNewRegistration(t *testing.T) {
 	nonce, err := wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, err := signer.Sign([]byte("foo"), nonce)
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 	test.AssertEquals(t,
@@ -624,8 +651,9 @@ func TestNewRegistration(t *testing.T) {
 	// Same signed body, but payload modified by one byte, breaking signature.
 	// should fail JWS verification.
 	responseWriter.Body.Reset()
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 		Body: makeBody(`
 			{
 				"header": {
@@ -651,8 +679,9 @@ func TestNewRegistration(t *testing.T) {
 	result, err = signer.Sign(
 		[]byte("{\"contact\":[\"tel:123456789\"],\"agreement\":\"https://letsencrypt.org/im-bad\"}"),
 		nonce)
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 	test.AssertEquals(t,
@@ -663,8 +692,9 @@ func TestNewRegistration(t *testing.T) {
 	nonce, err = wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, err = signer.Sign([]byte("{\"contact\":[\"tel:123456789\"],\"agreement\":\""+agreementURL+"\"}"), nonce)
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 
@@ -696,8 +726,9 @@ func TestNewRegistration(t *testing.T) {
 	nonce, err = wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, err = signer.Sign([]byte("{\"contact\":[\"tel:123456789\"],\"agreement\":\""+agreementURL+"\"}"), nonce)
-	wfe.NewRegistration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newRegURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 	test.AssertEquals(t,
@@ -733,6 +764,8 @@ func TestRevokeCertificate(t *testing.T) {
 
 	// POST, Properly JWS-signed, but payload is "foo", not base64-encoded JSON.
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
+	revokeURL := mustParseURL(RevokeCertPath)
 
 	wfe.RA = &MockRegistrationAuthority{}
 	wfe.SA = &MockSA{}
@@ -743,8 +776,9 @@ func TestRevokeCertificate(t *testing.T) {
 	nonce, err := wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, _ := signer.Sign(revokeRequestJSON, nonce)
-	wfe.RevokeCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    revokeURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 	test.AssertEquals(t, responseWriter.Code, 200)
@@ -762,8 +796,9 @@ func TestRevokeCertificate(t *testing.T) {
 	nonce, err = wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, _ = accountKeySigner.Sign(revokeRequestJSON, nonce)
-	wfe.RevokeCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    revokeURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 	test.AssertEquals(t, responseWriter.Code, 200)
@@ -794,6 +829,8 @@ func TestRevokeCertificateAlreadyRevoked(t *testing.T) {
 
 	// POST, Properly JWS-signed, but payload is "foo", not base64-encoded JSON.
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
+	revokeURL := mustParseURL(RevokeCertPath)
 
 	wfe.RA = &MockRegistrationAuthority{}
 	wfe.SA = &MockSA{}
@@ -804,8 +841,9 @@ func TestRevokeCertificateAlreadyRevoked(t *testing.T) {
 	nonce, err := wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, _ := signer.Sign(revokeRequestJSON, nonce)
-	wfe.RevokeCertificate(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    revokeURL,
 		Body:   makeBody(result.FullSerialize()),
 	})
 	test.AssertEquals(t, responseWriter.Code, 409)
@@ -815,6 +853,8 @@ func TestRevokeCertificateAlreadyRevoked(t *testing.T) {
 
 func TestAuthorization(t *testing.T) {
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
+	newAuthURL := mustParseURL(NewAuthzPath)
 
 	wfe.RA = &MockRegistrationAuthority{}
 	wfe.SA = &MockSA{}
@@ -822,30 +862,34 @@ func TestAuthorization(t *testing.T) {
 	responseWriter := httptest.NewRecorder()
 
 	// GET instead of POST should be rejected
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
+		URL:    newAuthURL,
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Method not allowed\"}")
 
 	// POST, but no body.
 	responseWriter.Body.Reset()
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newAuthURL,
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Unable to read/verify body\"}")
 
 	// POST, but body that isn't valid JWS
 	responseWriter.Body.Reset()
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newAuthURL,
 		Body:   makeBody("hi"),
 	})
 	test.AssertEquals(t, responseWriter.Body.String(), "{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Unable to read/verify body\"}")
 
 	// POST, Properly JWS-signed, but payload is "foo", not base64-encoded JSON.
 	responseWriter.Body.Reset()
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newAuthURL,
 		Body:   makeBody(signRequest(t, "foo", &wfe.nonceService)),
 	})
 	test.AssertEquals(t,
@@ -855,8 +899,9 @@ func TestAuthorization(t *testing.T) {
 	// Same signed body, but payload modified by one byte, breaking signature.
 	// should fail JWS verification.
 	responseWriter.Body.Reset()
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newAuthURL,
 		Body: makeBody(`
 			{
 					"header": {
@@ -877,8 +922,9 @@ func TestAuthorization(t *testing.T) {
 		"{\"type\":\"urn:acme:error:malformed\",\"detail\":\"Unable to read/verify body\"}")
 
 	responseWriter.Body.Reset()
-	wfe.NewAuthorization(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    newAuthURL,
 		Body:   makeBody(signRequest(t, "{\"identifier\":{\"type\":\"dns\",\"value\":\"test.com\"}}", &wfe.nonceService)),
 	})
 
@@ -898,6 +944,8 @@ func TestAuthorization(t *testing.T) {
 
 func TestRegistration(t *testing.T) {
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
+	regURL := mustParseURL(RegPath)
 
 	wfe.RA = &MockRegistrationAuthority{}
 	wfe.SA = &MockSA{}
@@ -906,11 +954,10 @@ func TestRegistration(t *testing.T) {
 	responseWriter := httptest.NewRecorder()
 
 	// Test invalid method
-	path, _ := url.Parse("/1")
-	wfe.Registration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "MAKE-COFFEE",
+		URL:    regURL,
 		Body:   makeBody("invalid"),
-		URL:    path,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -918,10 +965,9 @@ func TestRegistration(t *testing.T) {
 	responseWriter.Body.Reset()
 
 	// Test GET proper entry returns 405
-	path, _ = url.Parse("/1")
-	wfe.Registration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
-		URL:    path,
+		URL:    regURL,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -929,11 +975,10 @@ func TestRegistration(t *testing.T) {
 	responseWriter.Body.Reset()
 
 	// Test POST invalid JSON
-	path, _ = url.Parse("/2")
-	wfe.Registration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    regURL,
 		Body:   makeBody("invalid"),
-		URL:    path,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -951,11 +996,10 @@ func TestRegistration(t *testing.T) {
 	nonce, err := wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, err := signer.Sign([]byte("{\"agreement\":\""+agreementURL+"\"}"), nonce)
-	path, _ = url.Parse("/2")
-	wfe.Registration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    regURL,
 		Body:   makeBody(result.FullSerialize()),
-		URL:    path,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -969,19 +1013,16 @@ func TestRegistration(t *testing.T) {
 	signer, err = jose.NewSigner("RS256", rsaKey)
 	test.AssertNotError(t, err, "Failed to make signer")
 
-	path, _ = url.Parse("/2")
-
 	// Test POST valid JSON with registration up in the mock (with incorrect agreement URL)
 	nonce, err = wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, err = signer.Sign([]byte("{\"agreement\":\"https://letsencrypt.org/im-bad\"}"), nonce)
 
 	// Test POST valid JSON with registration up in the mock
-	path, _ = url.Parse("/1")
-	wfe.Registration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    mustParseURL(RegPath + "1"),
 		Body:   makeBody(result.FullSerialize()),
-		URL:    path,
 	})
 	test.AssertEquals(t,
 		responseWriter.Body.String(),
@@ -992,10 +1033,10 @@ func TestRegistration(t *testing.T) {
 	nonce, err = wfe.nonceService.Nonce()
 	test.AssertNotError(t, err, "Unable to create nonce")
 	result, err = signer.Sign([]byte("{\"agreement\":\""+agreementURL+"\"}"), nonce)
-	wfe.Registration(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "POST",
+		URL:    mustParseURL(RegPath + "1"),
 		Body:   makeBody(result.FullSerialize()),
-		URL:    path,
 	})
 	test.AssertNotContains(t, responseWriter.Body.String(), "urn:acme:error")
 	responseWriter.Body.Reset()
@@ -1003,6 +1044,7 @@ func TestRegistration(t *testing.T) {
 
 func TestTermsRedirect(t *testing.T) {
 	wfe := setupWFE(t)
+	mux := wfe.Handler()
 
 	wfe.RA = &MockRegistrationAuthority{}
 	wfe.SA = &MockSA{}
@@ -1011,10 +1053,9 @@ func TestTermsRedirect(t *testing.T) {
 
 	responseWriter := httptest.NewRecorder()
 
-	path, _ := url.Parse("/terms")
-	wfe.Terms(responseWriter, &http.Request{
+	mux.ServeHTTP(responseWriter, &http.Request{
 		Method: "GET",
-		URL:    path,
+		URL:    mustParseURL("/terms"),
 	})
 	test.AssertEquals(
 		t, responseWriter.Header().Get("Location"),
